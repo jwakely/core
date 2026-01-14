@@ -35,6 +35,10 @@ public:
 
 protected:
     void checkTextAlignedToBaselineGrid(const bool bAligned = true);
+
+    void applyPageLineSpacing(uint16_t nPage, bool bEnable, const OUString& rReferenceStyle);
+
+private:
     void checkTextAlignedToBaselineGrid(SwTextFrame* pTextFrame, const bool bAligned);
 };
 
@@ -97,6 +101,55 @@ void SwPageLineSpacingTest::checkTextAlignedToBaselineGrid(const bool bAligned)
             pNextFrame = pNextFrame->GetUpper();
             bLowerFinished = true;
         }
+    };
+}
+
+void SwPageLineSpacingTest::applyPageLineSpacing(uint16_t nPage, bool bEnable,
+                                                 const OUString& rReferenceStyle)
+{
+    SwDocShell* pDocShell = getSwDocShell();
+    CPPUNIT_ASSERT(pDocShell);
+
+    SwWrtShell* pWrtShell = pDocShell->GetWrtShell();
+    CPPUNIT_ASSERT(pWrtShell);
+
+    SwRootFrame* pRoot = pWrtShell->GetLayout();
+    CPPUNIT_ASSERT(pRoot);
+
+    SwFrame* pNextFrame = pRoot;
+    while (pNextFrame)
+    {
+        if (pNextFrame->IsPageFrame())
+        {
+            uint16_t nCurrentPage = 1;
+            while (pNextFrame)
+            {
+                if (nCurrentPage == nPage)
+                {
+                    auto pPageFrame = dynamic_cast<SwPageFrame*>(pNextFrame);
+                    CPPUNIT_ASSERT(pPageFrame);
+                    SwPageDesc* pPageDesc = pPageFrame->GetPageDesc();
+                    CPPUNIT_ASSERT(pPageDesc);
+                    SwDoc* pDoc = getSwDoc();
+                    CPPUNIT_ASSERT(pDoc);
+                    if (bEnable)
+                    {
+                        SwTextFormatColl* pFormat
+                            = pDoc->FindTextFormatCollByName(UIName(rReferenceStyle));
+                        pPageDesc->SetRegisterFormatColl(pFormat);
+                    }
+                    else
+                    {
+                        pPageDesc->SetRegisterFormatColl(nullptr);
+                    }
+                    break;
+                }
+                pNextFrame = pNextFrame->GetNext();
+            };
+
+            break;
+        }
+        pNextFrame = pNextFrame->GetLower();
     };
 }
 
@@ -175,13 +228,6 @@ CPPUNIT_TEST_FIXTURE(SwPageLineSpacingTest, testMultiplePages)
     createSwDoc("multiplePages.fodt");
 
     checkTextAlignedToBaselineGrid();
-}
-
-CPPUNIT_TEST_FIXTURE(SwPageLineSpacingTest, testPageLineSpacingDisabled)
-{
-    createSwDoc("pageLineSpacingDisabled.fodt");
-
-    checkTextAlignedToBaselineGrid(false);
 }
 
 CPPUNIT_TEST_FIXTURE(SwPageLineSpacingTest, testPageLineSpacingDisabledParagraph)
@@ -290,6 +336,36 @@ CPPUNIT_TEST_FIXTURE(SwPageLineSpacingTest, testBulletsAndNumbering)
 CPPUNIT_TEST_FIXTURE(SwPageLineSpacingTest, testVariousCharacterProperties)
 {
     createSwDoc("variousCharacterProperties.fodt");
+
+    checkTextAlignedToBaselineGrid();
+}
+
+CPPUNIT_TEST_FIXTURE(SwPageLineSpacingTest, testApplyPageLineSpacing)
+{
+    createSwDoc("pageLineSpacingDisabled.fodt");
+
+    checkTextAlignedToBaselineGrid(false);
+
+    applyPageLineSpacing(1, true, u"Body Text"_ustr);
+
+    checkTextAlignedToBaselineGrid();
+
+    applyPageLineSpacing(1, false, "");
+
+    checkTextAlignedToBaselineGrid(false);
+}
+
+CPPUNIT_TEST_FIXTURE(SwPageLineSpacingTest, testChangeReferenceStyle)
+{
+    createSwDoc("multipleParagraphs.fodt");
+
+    checkTextAlignedToBaselineGrid();
+
+    applyPageLineSpacing(1, true, u"Title"_ustr);
+
+    checkTextAlignedToBaselineGrid();
+
+    applyPageLineSpacing(1, true, u"Body Text"_ustr);
 
     checkTextAlignedToBaselineGrid();
 }
